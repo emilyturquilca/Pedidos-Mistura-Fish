@@ -1,0 +1,57 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Haz tu pedido</title>
+<style>
+:root{--ink:#0d2b3e;--mut:#5b7686;--line:#dbe8ee;--sea:#0e7c9b;--warm:#f08a4b}*{box-sizing:border-box}
+body{margin:0;background:#f3f8fa;color:var(--ink);font:16px/1.4 system-ui,sans-serif;padding-bottom:90px}
+header{background:var(--sea);color:#fff;padding:14px 16px}h1{margin:0;font-size:20px}header small{opacity:.9}
+main{max-width:640px;margin:0 auto;padding:12px}.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0 10px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:22px;padding:10px 16px;font:inherit;white-space:nowrap;min-height:48px}.chip.on{background:var(--sea);color:#fff;border-color:var(--sea)}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.qty{display:flex;align-items:center;gap:10px}.qty button{width:48px;height:48px;border-radius:50%;border:1px solid var(--sea);background:#fff;color:var(--sea);font-size:24px}
+.btn{background:var(--warm);border:0;border-radius:12px;padding:14px 18px;font:inherit;font-weight:700;min-height:52px;width:100%}
+input,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font:inherit;margin:4px 0 10px;min-height:48px}
+.seg{display:flex;gap:8px;margin-bottom:10px}.seg label{flex:1;border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center;background:#fff;min-height:48px}.seg input{display:none}.seg label.on{background:var(--sea);color:#fff}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 12px}.err{color:#b3261e}.hide{display:none}.mut{color:var(--mut)}
+</style></head><body>
+<header><h1 id="nom">Haz tu pedido</h1><small id="sub"></small></header><main id="app"><p>Cargando carta…</p></main>
+<div class="bar hide" id="bar"><button class="btn" id="go"></button></div>
+<script>
+const $=id=>document.getElementById(id),S=n=>'S/ '+Number(n).toFixed(2),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let M=[],CFG={},cart={},cat='',view='menu',F={tipo:'mesa',metodo:'efectivo',mesa:new URLSearchParams(location.search).get('mesa')||'',nombre:'',telefono:'',direccion:'',nota:''},msg='';
+const cid=localStorage.pw_cid||(localStorage.pw_cid=Math.random().toString(36).slice(2)+Date.now().toString(36));
+if(F.mesa)F.tipo='mesa';
+const sub=()=>M.reduce((s,x)=>s+(cart[x.v]||0)*x.p,0),cnt=()=>Object.values(cart).reduce((a,b)=>a+b,0),envio=()=>F.tipo=='delivery'?CFG.envio||0:0;
+async function init(){try{const d=await(await fetch('/api/menu')).json();if(d.error)throw new Error(d.error);M=d.m;CFG=d;$('nom').textContent=d.nombre||'Haz tu pedido';cat=M[0]?.c||'';
+ if(localStorage.pw_id){view='estado';poll()}draw()}catch(e){$('app').innerHTML='<p class="err">No se pudo cargar la carta. Intenta de nuevo en un momento.</p>'}}
+function draw(){const bar=$('bar');bar.classList.add('hide');
+ if(view=='menu'){const cs=[...new Set(M.map(x=>x.c))];
+  $('sub').textContent=F.mesa?'Mesa '+F.mesa:'';
+  $('app').innerHTML=`<div class="chips">${cs.map(c=>`<button class="chip${c==cat?' on':''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>`+
+  M.filter(x=>x.c==cat).map(x=>`<div class="card row"><div><b>${esc(x.n)}</b><div class="mut">${S(x.p)}</div></div><div class="qty"><button data-m="${x.v}">−</button><b>${cart[x.v]||0}</b><button data-p="${x.v}">+</button></div></div>`).join('');
+  $('app').querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{cat=b.dataset.c;draw()});
+  $('app').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{cart[b.dataset.p]=Math.min(20,(cart[b.dataset.p]||0)+1);draw()});
+  $('app').querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{const k=b.dataset.m;if(cart[k]>1)cart[k]--;else delete cart[k];draw()});
+  if(cnt()){bar.classList.remove('hide');$('go').textContent=`Ver pedido (${cnt()}) · ${S(sub())}`;$('go').onclick=()=>{view='pedido';draw()}}}
+ else if(view=='pedido'){const L=M.filter(x=>cart[x.v]);
+  $('app').innerHTML=`<button class="chip" id="back">← Seguir pidiendo</button><div class="card">${L.map(x=>`<div class="row"><span>${cart[x.v]} × ${esc(x.n)}</span><b>${S(cart[x.v]*x.p)}</b></div>`).join('')}${envio()?`<div class="row mut"><span>Envío</span><b>${S(envio())}</b></div>`:''}<hr><div class="row"><b>Total</b><b>${S(sub()+envio())}</b></div></div>
+  <div class="seg">${[['mesa','En mesa'],['delivery','Delivery']].map(([v,l])=>`<label class="${F.tipo==v?'on':''}"><input type="radio" name="t" value="${v}">${l}</label>`).join('')}</div>
+  ${F.tipo=='mesa'?`<label>Número de mesa<input id="mesa" inputmode="numeric" value="${esc(F.mesa)}"></label>`:`<label>Dirección y referencia<textarea id="direccion" rows="2">${esc(F.direccion)}</textarea></label>`}
+  <label>Tu nombre<input id="nombre" value="${esc(F.nombre)}"></label><label>Celular (9 dígitos)<input id="telefono" inputmode="numeric" maxlength="9" value="${esc(F.telefono)}"></label>
+  <label>Comentario (opcional)<input id="nota" value="${esc(F.nota)}"></label>
+  <b>¿Cómo pagas?</b><div class="seg">${[['efectivo','Efectivo'],['tarjeta','Tarjeta'],['yape','Yape']].map(([v,l])=>`<label class="${F.metodo==v?'on':''}"><input type="radio" name="m" value="${v}">${l}</label>`).join('')}</div>
+  <p class="mut">${F.metodo=='yape'?'Después de enviar verás el número de Yape. El personal confirma tu pago.':F.metodo=='tarjeta'?'Pagas con tarjeta cuando te atiendan o recibas tu pedido.':'Pagas en efectivo cuando te atiendan o recibas tu pedido.'}</p>
+  <p class="err" id="err">${esc(msg)}</p><button class="btn" id="send">Enviar pedido</button>`;
+  const keep=()=>{['mesa','direccion','nombre','telefono','nota'].forEach(k=>{if($(k))F[k]=$(k).value})};
+  $('back').onclick=()=>{keep();view='menu';draw()};
+  document.querySelectorAll('[name=t]').forEach(r=>r.onchange=()=>{keep();F.tipo=r.value;draw()});
+  document.querySelectorAll('[name=m]').forEach(r=>r.onchange=()=>{keep();F.metodo=r.value;draw()});
+  $('send').onclick=async()=>{keep();$('send').disabled=true;msg='';
+   try{const r=await fetch('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...F,cid,items:Object.entries(cart).map(([v,q])=>({v,q}))})});const d=await r.json();if(!r.ok)throw new Error(d.error);
+    localStorage.pw_id=d.id;cart={};view='estado';poll();draw()}catch(e){msg=e.message;draw()}}}
+ else{const o=window.EST||{};
+  $('app').innerHTML=`<div class="card"><h2>Pedido #${esc(localStorage.pw_id)}</h2><p>Estado: <b>${esc(({nuevo:'Recibido, esperando confirmación',preparando:'En preparación',listo:'Listo',en_camino:'En camino',cerrado:'Entregado y pagado',cancelado:'Cancelado'})[o.estado]||'…')}</b></p>
+  ${o.total?`<p>Total: <b>${S(o.total)}</b></p>`:''}${o.metodo=='yape'&&!['cerrado','cancelado'].includes(o.estado)?`<p>Paga por Yape al <b>${esc(CFG.yape||'(pide el número al personal)')}</b> y muestra la captura al personal.</p>`:''}
+  <button class="chip" id="nuevo">Hacer otro pedido</button></div>`;
+  $('nuevo').onclick=()=>{localStorage.removeItem('pw_id');localStorage.pw_cid=Math.random().toString(36).slice(2)+Date.now().toString(36);location.reload()}}}
+let T;function poll(){clearInterval(T);const f=async()=>{try{window.EST=await(await fetch('/api/order?id='+localStorage.pw_id)).json();if(view=='estado')draw()}catch{}};f();T=setInterval(f,8000)}
+init();
+</script></body></html>
