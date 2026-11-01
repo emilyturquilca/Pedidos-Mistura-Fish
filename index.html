@@ -1,57 +1,79 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Haz tu pedido</title>
-<style>
-:root{--ink:#0d2b3e;--mut:#5b7686;--line:#dbe8ee;--sea:#0e7c9b;--warm:#f08a4b}*{box-sizing:border-box}
-body{margin:0;background:#f3f8fa;color:var(--ink);font:16px/1.4 system-ui,sans-serif;padding-bottom:90px}
-header{background:var(--sea);color:#fff;padding:14px 16px}h1{margin:0;font-size:20px}header small{opacity:.9}
-main{max-width:640px;margin:0 auto;padding:12px}.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0 10px}
-.chip{border:1px solid var(--line);background:#fff;border-radius:22px;padding:10px 16px;font:inherit;white-space:nowrap;min-height:48px}.chip.on{background:var(--sea);color:#fff;border-color:var(--sea)}
-.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.qty{display:flex;align-items:center;gap:10px}.qty button{width:48px;height:48px;border-radius:50%;border:1px solid var(--sea);background:#fff;color:var(--sea);font-size:24px}
-.btn{background:var(--warm);border:0;border-radius:12px;padding:14px 18px;font:inherit;font-weight:700;min-height:52px;width:100%}
-input,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font:inherit;margin:4px 0 10px;min-height:48px}
-.seg{display:flex;gap:8px;margin-bottom:10px}.seg label{flex:1;border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center;background:#fff;min-height:48px}.seg input{display:none}.seg label.on{background:var(--sea);color:#fff}
-.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 12px}.err{color:#b3261e}.hide{display:none}.mut{color:var(--mut)}
-</style></head><body>
-<header><h1 id="nom">Haz tu pedido</h1><small id="sub"></small></header><main id="app"><p>Cargando carta…</p></main>
-<div class="bar hide" id="bar"><button class="btn" id="go"></button></div>
-<script>
-const $=id=>document.getElementById(id),S=n=>'S/ '+Number(n).toFixed(2),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let M=[],CFG={},cart={},cat='',view='menu',F={tipo:'mesa',metodo:'efectivo',mesa:new URLSearchParams(location.search).get('mesa')||'',nombre:'',telefono:'',direccion:'',nota:''},msg='';
-const cid=localStorage.pw_cid||(localStorage.pw_cid=Math.random().toString(36).slice(2)+Date.now().toString(36));
-if(F.mesa)F.tipo='mesa';
-const sub=()=>M.reduce((s,x)=>s+(cart[x.v]||0)*x.p,0),cnt=()=>Object.values(cart).reduce((a,b)=>a+b,0),envio=()=>F.tipo=='delivery'?CFG.envio||0:0;
-async function init(){try{const d=await(await fetch('/api/menu')).json();if(d.error)throw new Error(d.error);M=d.m;CFG=d;$('nom').textContent=d.nombre||'Haz tu pedido';cat=M[0]?.c||'';
- if(localStorage.pw_id){view='estado';poll()}draw()}catch(e){$('app').innerHTML='<p class="err">No se pudo cargar la carta. Intenta de nuevo en un momento.</p>'}}
-function draw(){const bar=$('bar');bar.classList.add('hide');
- if(view=='menu'){const cs=[...new Set(M.map(x=>x.c))];
-  $('sub').textContent=F.mesa?'Mesa '+F.mesa:'';
-  $('app').innerHTML=`<div class="chips">${cs.map(c=>`<button class="chip${c==cat?' on':''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>`+
-  M.filter(x=>x.c==cat).map(x=>`<div class="card row"><div><b>${esc(x.n)}</b><div class="mut">${S(x.p)}</div></div><div class="qty"><button data-m="${x.v}">−</button><b>${cart[x.v]||0}</b><button data-p="${x.v}">+</button></div></div>`).join('');
-  $('app').querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{cat=b.dataset.c;draw()});
-  $('app').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{cart[b.dataset.p]=Math.min(20,(cart[b.dataset.p]||0)+1);draw()});
-  $('app').querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{const k=b.dataset.m;if(cart[k]>1)cart[k]--;else delete cart[k];draw()});
-  if(cnt()){bar.classList.remove('hide');$('go').textContent=`Ver pedido (${cnt()}) · ${S(sub())}`;$('go').onclick=()=>{view='pedido';draw()}}}
- else if(view=='pedido'){const L=M.filter(x=>cart[x.v]);
-  $('app').innerHTML=`<button class="chip" id="back">← Seguir pidiendo</button><div class="card">${L.map(x=>`<div class="row"><span>${cart[x.v]} × ${esc(x.n)}</span><b>${S(cart[x.v]*x.p)}</b></div>`).join('')}${envio()?`<div class="row mut"><span>Envío</span><b>${S(envio())}</b></div>`:''}<hr><div class="row"><b>Total</b><b>${S(sub()+envio())}</b></div></div>
-  <div class="seg">${[['mesa','En mesa'],['delivery','Delivery']].map(([v,l])=>`<label class="${F.tipo==v?'on':''}"><input type="radio" name="t" value="${v}">${l}</label>`).join('')}</div>
-  ${F.tipo=='mesa'?`<label>Número de mesa<input id="mesa" inputmode="numeric" value="${esc(F.mesa)}"></label>`:`<label>Dirección y referencia<textarea id="direccion" rows="2">${esc(F.direccion)}</textarea></label>`}
-  <label>Tu nombre<input id="nombre" value="${esc(F.nombre)}"></label><label>Celular (9 dígitos)<input id="telefono" inputmode="numeric" maxlength="9" value="${esc(F.telefono)}"></label>
-  <label>Comentario (opcional)<input id="nota" value="${esc(F.nota)}"></label>
-  <b>¿Cómo pagas?</b><div class="seg">${[['efectivo','Efectivo'],['tarjeta','Tarjeta'],['yape','Yape']].map(([v,l])=>`<label class="${F.metodo==v?'on':''}"><input type="radio" name="m" value="${v}">${l}</label>`).join('')}</div>
-  <p class="mut">${F.metodo=='yape'?'Después de enviar verás el número de Yape. El personal confirma tu pago.':F.metodo=='tarjeta'?'Pagas con tarjeta cuando te atiendan o recibas tu pedido.':'Pagas en efectivo cuando te atiendan o recibas tu pedido.'}</p>
-  <p class="err" id="err">${esc(msg)}</p><button class="btn" id="send">Enviar pedido</button>`;
-  const keep=()=>{['mesa','direccion','nombre','telefono','nota'].forEach(k=>{if($(k))F[k]=$(k).value})};
-  $('back').onclick=()=>{keep();view='menu';draw()};
-  document.querySelectorAll('[name=t]').forEach(r=>r.onchange=()=>{keep();F.tipo=r.value;draw()});
-  document.querySelectorAll('[name=m]').forEach(r=>r.onchange=()=>{keep();F.metodo=r.value;draw()});
-  $('send').onclick=async()=>{keep();$('send').disabled=true;msg='';
-   try{const r=await fetch('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...F,cid,items:Object.entries(cart).map(([v,q])=>({v,q}))})});const d=await r.json();if(!r.ok)throw new Error(d.error);
-    localStorage.pw_id=d.id;cart={};view='estado';poll();draw()}catch(e){msg=e.message;draw()}}}
- else{const o=window.EST||{};
-  $('app').innerHTML=`<div class="card"><h2>Pedido #${esc(localStorage.pw_id)}</h2><p>Estado: <b>${esc(({nuevo:'Recibido, esperando confirmación',preparando:'En preparación',listo:'Listo',en_camino:'En camino',cerrado:'Entregado y pagado',cancelado:'Cancelado'})[o.estado]||'…')}</b></p>
-  ${o.total?`<p>Total: <b>${S(o.total)}</b></p>`:''}${o.metodo=='yape'&&!['cerrado','cancelado'].includes(o.estado)?`<p>Paga por Yape al <b>${esc(CFG.yape||'(pide el número al personal)')}</b> y muestra la captura al personal.</p>`:''}
-  <button class="chip" id="nuevo">Hacer otro pedido</button></div>`;
-  $('nuevo').onclick=()=>{localStorage.removeItem('pw_id');localStorage.pw_cid=Math.random().toString(36).slice(2)+Date.now().toString(36);location.reload()}}}
-let T;function poll(){clearInterval(T);const f=async()=>{try{window.EST=await(await fetch('/api/order?id='+localStorage.pw_id)).json();if(view=='estado')draw()}catch{}};f();T=setInterval(f,8000)}
-init();
-</script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b2a4a">
+  <meta name="description" content="La carta de Mistura Fish. Elige tus favoritos y haz tu pedido desde la mesa o para delivery.">
+  <title>Mistura Fish · Del mar a tu mesa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <div id="demo-banner" class="demo-banner" hidden>VISTA DE PRUEBA · Carta de ejemplo. No se envían pedidos ni promociones reales.</div>
+  <header class="site-header">
+    <a href="#" id="brand" class="brand" aria-label="Mistura Fish, inicio"><span class="brand-icon" aria-hidden="true">↝</span><span>Mistura <em>Fish</em><small>COCINA MARINA</small></span></a>
+    <div class="header-right"><span id="table-label" class="pill">Bienvenido a la mesa</span><button id="profile-button" class="text-button" hidden>Mis datos</button></div>
+  </header>
+  <nav class="journey" aria-label="Pasos del pedido">
+    <button data-view="welcome" aria-current="step"><span>01</span> Bienvenida</button><i></i>
+    <button data-view="menu" disabled><span>02</span> La carta</button><i></i>
+    <button data-view="checkout" disabled><span>03</span> Tu pedido</button>
+  </nav>
+  <main id="main">
+    <section id="welcome-view" class="view welcome-grid" aria-labelledby="welcome-title">
+      <div class="welcome-story">
+        <span class="eyebrow">EL MAR NOS INSPIRA</span>
+        <h1>Un buen momento<br>empieza con<br><em>buen sabor.</em></h1>
+        <p>Frescura, tradición y ese toque de la casa.<br>Bienvenido a la experiencia Mistura Fish.</p>
+        <div class="sea-art" aria-hidden="true"><div class="art-ring"></div><div class="art-plate"><svg viewBox="0 0 300 200"><path d="M55 100C100 25 195 25 235 100c-40 75-135 75-180 0Z" fill="#1d4e89"/><path d="m220 100 55-45v90Z" fill="#1d4e89"/><path d="M140 45q-30 55 0 110M170 45q-30 55 0 110" stroke="#faf4e6" stroke-width="3" fill="none"/><circle cx="88" cy="88" r="5" fill="#c8a24a"/><path d="M60 104q20 12 32 0" stroke="#faf4e6" fill="none" stroke-width="3"/></svg><span class="art-leaf leaf-one"></span><span class="art-leaf leaf-two"></span><span class="art-lime"></span></div><span class="art-label">Hecho para disfrutar.</span></div>
+        <div class="story-footer"><span>FRESCO POR NATURALEZA</span><span>PREPARADO CON PASIÓN</span></div>
+      </div>
+      <div class="welcome-form-panel">
+        <span class="eyebrow">QUÉ GUSTO TENERTE AQUÍ</span>
+        <h2 id="welcome-title">Primero, conozcámonos.</h2>
+        <p class="muted" id="welcome-description">Cuéntanos cómo te llamas y descubre nuestra carta.</p>
+        <form id="profile-form">
+          <div class="field-row"><label>Nombre <span class="required">*</span><input id="firstName" name="firstName" autocomplete="given-name" maxlength="80" placeholder="Tu nombre" required></label><label>Apellido <span class="required">*</span><input id="lastName" name="lastName" autocomplete="family-name" maxlength="80" placeholder="Tu apellido" required></label></div>
+          <label>Celular <span class="optional" id="phone-label">(opcional)</span><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="24" placeholder="Ej.: 987 654 321" aria-describedby="phone-help"></label>
+          <p class="field-help" id="phone-help">Para Perú, ingresa 9 dígitos. Otro país: incluye el prefijo +.</p>
+          <div class="consent-box"><label class="check-label"><input type="checkbox" id="marketing" name="marketing"><span id="consent-text">Quiero recibir promociones especiales de Mistura Fish por WhatsApp, como descuentos y beneficios por mi cumpleaños.</span></label><p>Puedes cambiar tu decisión cuando quieras en «Mis datos».</p></div>
+          <fieldset id="birthday-fields" hidden disabled><legend>¿Cuándo celebramos tu cumpleaños? <span class="required">*</span></legend><div class="field-row"><label>Día<input id="birthDay" name="birthDay" type="number" inputmode="numeric" min="1" max="31" placeholder="DD"></label><label>Mes<select id="birthMonth" name="birthMonth"><option value="">Selecciona el mes</option></select></label></div><p class="field-help">Solo necesitamos día y mes para tu beneficio de cumpleaños.</p></fieldset>
+          <p class="form-error" id="profile-error" role="alert"></p>
+          <button class="button primary full" id="profile-submit" type="submit">Ver la carta <span aria-hidden="true">→</span></button>
+          <button class="button secondary full" id="profile-cancel" type="button" hidden>Volver sin cambios</button>
+          <p class="privacy-note">Los campos con * son obligatorios. Las promociones son opcionales.<br><button type="button" id="privacy-open" class="inline-link">Cómo usamos tus datos</button></p>
+        </form>
+      </div>
+    </section>
+    <section id="menu-view" class="view menu-layout" hidden aria-labelledby="menu-title">
+      <div class="menu-heading"><div><span class="eyebrow">DEL MAR A TU MESA</span><h1 id="menu-title">Hoy se come <em>rico.</em></h1><p id="greeting" class="muted"></p></div><button id="refresh-menu" class="button secondary">↻ Actualizar carta</button></div>
+      <div class="catalog-tools"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="¿Qué se te antoja hoy?" aria-label="Buscar en la carta"></label><div id="categories" class="chips" aria-label="Categorías"></div></div>
+      <p id="menu-message" role="status" class="muted"></p>
+      <div id="products" class="product-grid"></div>
+      <div class="menu-bottom"><p>¿Un pedido especial? Cuéntanos en las instrucciones para cocina.</p><a id="contact-link" class="inline-link" hidden target="_blank" rel="noopener noreferrer">Consultar por WhatsApp ↗</a></div>
+    </section>
+    <section id="checkout-view" class="view checkout-layout" hidden aria-labelledby="checkout-title">
+      <div class="page-heading"><button id="back-menu" class="text-button">← Volver a la carta</button><h1 id="checkout-title">Tu pedido, <em>a tu gusto.</em></h1><p class="muted">Revisa los detalles. Nosotros nos encargamos del sabor.</p></div>
+      <form id="order-form" class="checkout-grid">
+        <div>
+          <section class="panel"><h2><span class="section-number">01</span> ¿Dónde lo disfrutas?</h2><div class="segmented"><label><input type="radio" name="tipo" value="mesa" checked><span>En mi mesa</span></label><label><input type="radio" name="tipo" value="delivery"><span>Delivery</span></label></div><label id="table-field">Número de mesa<input id="table" maxlength="12" placeholder="Ej.: 04"></label><div id="delivery-fields" hidden><label>Dirección y referencia<textarea id="address" maxlength="300" placeholder="Calle, número, distrito y una referencia"></textarea></label><p class="field-help">Necesitamos un celular de contacto para coordinar el delivery. Puedes agregarlo en «Mis datos».</p></div></section>
+          <section class="panel"><h2><span class="section-number">02</span> Método de pago</h2><div class="payment-options"><label><input type="radio" name="metodo" value="yape"><span class="payment-icon">↗</span><span><b>Yape</b><small>El personal verificará tu transferencia.</small></span></label><div id="yape-details" class="payment-info" hidden></div><label><input type="radio" name="metodo" value="tarjeta"><span class="payment-icon">▰</span><span><b>Tarjeta</b><small>Coordina el pago con el POS del personal.</small></span></label><label><input type="radio" name="metodo" value="efectivo" checked><span class="payment-icon">S/</span><span><b>Efectivo</b><small>Pagas cuando el personal te atienda.</small></span></label></div></section>
+          <section class="panel"><h2><span class="section-number">03</span> Datos del comprobante</h2><p class="field-help">El personal usará estos datos para gestionar tu comprobante.</p><div class="segmented"><label><input type="radio" name="billingType" value="boleta" checked><span>Boleta</span></label><label><input type="radio" name="billingType" value="factura"><span>Factura</span></label></div><label id="document-label">DNI (opcional)<input id="document" inputmode="numeric" maxlength="8" placeholder="8 dígitos"></label><label id="company-label" hidden>Razón social<input id="company" maxlength="150" autocomplete="organization"></label><label>Correo (opcional)<input id="email" type="email" autocomplete="email" maxlength="150" placeholder="tucorreo@ejemplo.com"></label><label class="check-label transaction"><input type="checkbox" id="transactional"><span>Quiero que el personal me contacte por WhatsApp sobre este pedido.</span></label><p class="field-help">Esta opción es independiente de las promociones.</p></section>
+          <section class="panel"><h2>Un toque a tu gusto</h2><label>Instrucciones para cocina (opcional)<textarea id="notes" maxlength="500" placeholder="Ej.: sin culantro, ají aparte…"></textarea></label></section>
+        </div>
+        <aside class="order-summary panel"><span class="eyebrow">LA BUENA ELECCIÓN</span><h2>Tu comanda</h2><div id="order-lines"></div><dl><div><dt>Productos</dt><dd id="subtotal"></dd></div><div id="delivery-total" hidden><dt>Envío</dt><dd id="shipping"></dd></div><div class="grand-total"><dt>Total</dt><dd id="total"></dd></div></dl><div class="customer-summary" id="customer-summary"></div><p class="form-error" id="order-error" role="alert"></p><button id="order-submit" class="button primary full" type="submit">Confirmar pedido →</button><p class="field-help center">El pedido se envía al personal.<br>El pago se confirma por separado.</p></aside>
+      </form>
+    </section>
+    <section id="status-view" class="view status-panel panel" hidden aria-labelledby="status-title"><span class="status-icon" aria-hidden="true">✓</span><span class="eyebrow">GRACIAS POR ELEGIRNOS</span><h1 id="status-title">¡Tu pedido está en marcha!</h1><p id="status-reference"></p><div id="status-detail" role="status"></div><p class="field-help" id="status-note"></p><button id="status-refresh" class="button secondary">Actualizar estado</button><button id="new-order" class="button primary">Volver a la carta →</button></section>
+  </main>
+  <footer class="site-footer"><span class="footer-brand">Mistura Fish</span><span>El sabor del mar. El gusto de compartir.</span><button class="inline-link" id="footer-privacy">Privacidad</button></footer>
+  <div id="cart-dock" class="cart-dock" hidden><div><span id="cart-count"></span><strong id="cart-total"></strong></div><button id="open-cart" class="button gold">Ver mi pedido →</button></div>
+  <dialog id="privacy-dialog"><button id="privacy-close" class="dialog-close" aria-label="Cerrar aviso">×</button><span class="eyebrow">TUS DATOS, CON CLARIDAD</span><h2>Privacidad y preferencias</h2><p>Mistura Fish utiliza tu nombre y apellido para identificarte y atender tu pedido. Si dejas tu celular, podrá usarse para coordinar la atención que solicites.</p><p>Solo si marcas la casilla de promociones se guardan tu día y mes de cumpleaños para beneficios y descuentos por WhatsApp. Registramos tu decisión y la fecha en que la tomaste.</p><p>Puedes retirar esa autorización en «Mis datos», desmarcando la casilla y guardando los cambios. El historial de la decisión se conserva para dejar constancia de tu autorización o retiro.</p><p>Para solicitar acceso o eliminación de tus datos, contacta al personal de Mistura Fish. El envío automático de campañas y comprobantes no forma parte de esta carta.</p><p class="field-help">Antes de la apertura pública, el negocio debe completar su aviso con sus datos de contacto y plazos de conservación.</p></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>
+

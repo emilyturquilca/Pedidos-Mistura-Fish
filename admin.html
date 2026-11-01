@@ -1,23 +1,24 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pedidos · Personal</title>
-<style>*{box-sizing:border-box}body{margin:0;background:#f3f8fa;color:#0d2b3e;font:15px/1.4 system-ui,sans-serif;padding:12px}
-.card{background:#fff;border:1px solid #dbe8ee;border-radius:12px;padding:12px;margin-bottom:10px;max-width:760px;margin-inline:auto}
-button,input,select{font:inherit;padding:10px 14px;border-radius:10px;border:1px solid #dbe8ee;background:#fff;min-height:44px}.p{background:#0e7c9b;color:#fff;border:0}.w{background:#f08a4b;border:0;font-weight:700}
-.tag{background:#e8f4f6;border-radius:10px;padding:2px 8px}.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.mut{color:#5b7686}.err{color:#b3261e}</style></head><body>
-<div id="app"></div>
-<script>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mistura Fish · Personal</title><link rel="stylesheet" href="/styles.css"><style>main{max-width:950px;padding-top:30px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.tag{background:#faf4e6;padding:5px 10px;border-radius:20px}.muted{white-space:pre-line}.login{max-width:420px;margin:50px auto}.panel h2{margin-bottom:12px}</style></head><body><header class="site-header"><a class="brand" href="/">Mistura Fish</a><span class="pill">Personal</span></header><main><div id="app"></div></main><script type="module">
 const $=id=>document.getElementById(id),S=n=>'S/ '+Number(n).toFixed(2),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let P=[],T,msg='';
-const H=()=>({'Content-Type':'application/json','x-clave':encodeURIComponent(localStorage.pw_admin||'')});
-function login(){$('app').innerHTML='<div class="card"><h2>Personal</h2><input id="c" type="password" placeholder="Contraseña" onkeydown="if(event.key==\'Enter\')entrar()"> <button class="p" onclick="entrar()">Entrar</button><p class="err" id="e"></p></div>'}
-async function entrar(){localStorage.pw_admin=$('c').value;const r=await fetch('/api/admin',{headers:H()});if(r.ok)start();else{localStorage.removeItem('pw_admin');$('e').textContent='Contraseña incorrecta'}}
-function start(){load();clearInterval(T);T=setInterval(load,10000)}
-async function load(){const r=await fetch('/api/admin',{headers:H()});if(r.status==401)return login();P=(await r.json()).pedidos||[];draw()}
-async function act(b){const r=await fetch('/api/admin',{method:'POST',headers:H(),body:JSON.stringify(b)});const d=await r.json();msg=r.ok?(d.receipt?'Registrado en Loyverse: recibo '+d.receipt:''):d.error;load()}
-function cobrar(id,m){const metodo=prompt('Método de pago recibido: efectivo, tarjeta o yape',m);if(!metodo)return;const op=metodo.toLowerCase()=='yape'?prompt('N.º de operación de Yape (opcional)')||'':'';if(confirm('¿Registrar este pedido como pagado en Loyverse?'))act({accion:'cobrar',id,metodo:metodo.toLowerCase(),op})}
-async function ids(){const d=await(await fetch('/api/config',{headers:H()})).json();alert(d.error?d.error:'TIENDAS\n'+d.tiendas.map(t=>t.name+': '+t.id).join('\n')+'\n\nTIPOS DE PAGO\n'+d.pagos.map(t=>t.name+': '+t.id).join('\n'))}
-function draw(){$('app').innerHTML=`<div class="card row"><b>Pedidos</b><button onclick="load()">Actualizar</button><button onclick="ids()">Ver IDs de Loyverse</button></div>${msg?`<div class="card ${msg.startsWith('Registrado')?'':'err'}">${esc(msg)}</div>`:''}`+
- (P.length?P.map(p=>{const it=p.items||[],ab=!['cerrado','cancelado'].includes(p.estado);return `<div class="card"><div class="row"><b>#${p.id} · ${p.tipo=='mesa'?'Mesa '+esc(p.mesa):'Delivery'}</b><span class="tag">${esc(p.estado)}</span><span class="tag">${esc(p.metodo)}</span><b>${S(p.total)}</b></div>
- <div>${it.map(i=>`${i.q} × ${esc(i.n)}`).join('<br>')}</div><div class="mut">${esc(p.nombre)} · ${esc(p.telefono)}${p.direccion?'<br>'+esc(p.direccion):''}${p.nota?'<br>“'+esc(p.nota)+'”':''}${p.receipt?'<br>Recibo Loyverse: '+esc(p.receipt):''}</div>
- ${ab?`<div class="row"><button onclick="act({accion:'estado',id:${p.id},estado:'preparando'})">Preparando</button><button onclick="act({accion:'estado',id:${p.id},estado:'listo'})">Listo</button>${p.tipo=='delivery'?`<button onclick="act({accion:'estado',id:${p.id},estado:'en_camino'})">En camino</button>`:''}<button class="w" onclick="cobrar(${p.id},'${esc(p.metodo)}')">Cobrar y registrar</button><button onclick="if(confirm('¿Cancelar el pedido?'))act({accion:'estado',id:${p.id},estado:'cancelado'})">Cancelar</button></div>`:''}</div>`}).join(''):'<div class="card mut">No hay pedidos.</div>')}
-localStorage.pw_admin?start():login();
+let P=[],T,password='',busy=false;
+const H=()=>({'Content-Type':'application/json','x-clave':encodeURIComponent(password)});
+async function api(path='admin',body){const r=await fetch('/api/'+path,{method:body?'POST':'GET',headers:H(),...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw new Error(d.error||'No se pudo completar la operación.');return d;}
+function message(text){if($('msg'))$('msg').textContent=text;}
+function login(){clearInterval(T);password='';$('app').innerHTML='<form class="panel login"><span class="eyebrow">SOLO PERSONAL</span><h2>Atendamos algo rico.</h2><label>Contraseña<input id="c" type="password" required autocomplete="current-password"></label><p class="form-error" id="e" role="alert"></p><button class="button primary full">Entrar</button></form>';$('app').querySelector('form').onsubmit=async e=>{e.preventDefault();password=$('c').value;try{await load();T=setInterval(()=>load().catch(e=>message(e.message)),15000);}catch(error){$('e').textContent=error.message;}};}
+async function load(){if(busy)return;P=(await api()).pedidos||[];draw();}
+async function act(body){busy=true;let result,error;try{result=await api('admin',body);}catch(e){error=e;}finally{busy=false;await load().catch(()=>{});message(error?error.message:result.receipt?'Registrado en Loyverse: '+result.receipt:'Estado actualizado.');}}
+function draw(){
+  $('app').innerHTML='<div class="panel row"><h2 style="margin:0 auto 0 0">Pedidos</h2><button class="button secondary" id="refresh">Actualizar</button><button class="button secondary" id="ids">Ver IDs de Loyverse</button><button class="text-button" id="logout">Salir</button></div><p class="form-error" id="msg" role="status"></p>'+ (P.length?P.map(p=>{
+    const bill=p.comprobante||{},open=!['cerrado','cancelado'].includes(p.estado),sync=['sending','uncertain'].includes(p.sync_state);
+    return '<article class="panel"><div class="row"><h2>#'+p.id+' · '+(p.tipo==='mesa'?'Mesa '+esc(p.mesa):'Delivery')+'</h2><span class="tag">'+esc(p.estado)+'</span><span class="tag">'+esc(p.metodo)+'</span><b>'+S(p.total)+'</b></div><p>'+(p.items||[]).map(i=>i.q+' × '+esc(i.n)).join('<br>')+'</p><p class="muted">'+esc(p.nombre)+' · '+esc(p.telefono||'Sin celular')+(p.direccion?'<br>'+esc(p.direccion):'')+(p.nota?'<br>Nota: '+esc(p.nota):'')+'</p><p class="muted">Comprobante solicitado: '+esc(bill.type||'Sin datos')+' · '+esc(bill.document||'Sin documento')+' '+esc(bill.company||'')+'<br>Correo: '+esc(bill.email||'No indicado')+'<br>Contacto WhatsApp del pedido: '+(p.notificaciones_whatsapp?'Solicitado':'No solicitado')+'</p>'+(p.receipt?'<p>Recibo Loyverse: <b>'+esc(p.receipt)+'</b></p>':'')+(sync?'<p class="muted">Registro de cobro pendiente de revisión. Se buscará el recibo en Loyverse sin reenviarlo automáticamente.</p>':'')+(open?'<div class="row">'+(!sync?['preparando','listo',...(p.tipo==='delivery'?['en_camino']:[])].map(s=>'<button class="button secondary" data-id="'+p.id+'" data-state="'+s+'">'+s.replace('_',' ')+'</button>').join(''):'')+'<button class="button gold" data-id="'+p.id+'" data-charge="'+esc(p.metodo)+'">'+(sync?'Revisar recibo':'Cobrar y registrar')+'</button>'+(!sync?'<button class="text-button" data-id="'+p.id+'" data-state="cancelado">Cancelar</button>':'')+'</div>':'')+'</article>';
+  }).join(''):'<div class="panel">No hay pedidos.</div>');
+  $('refresh').onclick=()=>load().catch(e=>message(e.message));$('logout').onclick=login;$('ids').onclick=async()=>{try{const d=await api('config');alert('TIENDAS\n'+d.tiendas.map(t=>t.name+': '+t.id).join('\n')+'\n\nPAGOS\n'+d.pagos.map(t=>t.name+': '+t.id).join('\n'));}catch(e){message(e.message);}};
+}
+$('app').addEventListener('click',async event=>{const b=event.target.closest('[data-id]');if(!b||busy)return;
+  if(b.dataset.state){if(b.dataset.state==='cancelado'&&!confirm('¿Cancelar este pedido?'))return;await act({accion:'estado',id:Number(b.dataset.id),estado:b.dataset.state});}
+  else{const metodo=prompt('Método de pago recibido: efectivo, tarjeta o yape',b.dataset.charge);if(!metodo)return;if(confirm('Confirma solo si verificaste el pago recibido. ¿Registrar o revisar el recibo en Loyverse?'))await act({accion:'cobrar',id:Number(b.dataset.id),metodo:metodo.trim().toLowerCase()});}
+});
+login();
 </script></body></html>
+
+
