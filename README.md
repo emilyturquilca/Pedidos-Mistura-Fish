@@ -1,24 +1,26 @@
-# Pedidos web (mesa con QR y delivery) → Loyverse
+# Mistura Fish · Carta y checkout
 
-Los clientes piden desde el celular; el personal confirma y cobra; la venta queda registrada como recibo en **Loyverse**.
+Carta pública para mesa con QR, recojo y delivery, inspirada en el HTML de referencia. Usa la API existente de https://misturafishreports.vercel.app, autorizada exclusivamente para https://pedidos-mistura-fish.vercel.app. El navegador nunca recibe el token de Loyverse ni la base de datos.
 
-## Flujo
-1. El cliente abre la carta (productos y precios salen de Loyverse), elige mesa o delivery y forma de pago (efectivo, tarjeta, Yape) y envía el pedido.
-2. El pedido queda en la base de datos (no es una venta todavía).
-3. El personal lo ve en `/admin.html`, lo marca *preparando / listo / en camino* y, al cobrar, presiona **Cobrar y registrar**: recién ahí se crea el recibo en Loyverse.
+## Flujo real
+1. Administración actualiza el catálogo desde Loyverse en Reports → Pedidos web, elige productos/presentaciones y publica la carta. Los precios salen de Loyverse; no se inventan precios en el HTML.
+2. El cliente elige platos, indica mesa o dirección y confirma. El servidor valida precios y guarda un pedido único con seguimiento privado.
+3. El mismo pedido aparece en Reports → Operativo y en el acceso exclusivo de cocina. Los estados del pedido y el pago se gestionan por separado.
+4. Caja confirma el efectivo recibido desde el perfil operativo o administración desde Pedidos web. Una pasarela configurada puede confirmar los pagos en línea.
+5. Con la sincronización de recibos habilitada y los tipos de pago asociados, el servidor crea un recibo de venta en Loyverse, guarda su número y lo incorpora a Reports. No volver a registrar el mismo pedido manualmente en el POS.
 
-## Puesta en marcha
-1. Crea una base en Neon y ejecuta `schema.sql`.
-2. Sube estos archivos a un repositorio privado de GitHub (en la raíz) y créalo en Vercel (framework: Other).
-3. En Vercel > Settings > Environment Variables agrega las de `.env.example`. Primero pon `DATABASE_URL`, `LOYVERSE_TOKEN` y `ADMIN_PASSWORD`; haz Redeploy.
-4. Entra a `/admin.html`, presiona **Ver IDs de Loyverse**, copia el ID de la tienda y de los tipos de pago (efectivo, tarjeta, Yape) a `LOYVERSE_STORE_ID`, `PAY_EFECTIVO_ID`, `PAY_TARJETA_ID`, `PAY_YAPE_ID`. Redeploy.
-5. QR por mesa: genera un QR con la dirección `https://TU-APP.vercel.app/?mesa=5` (una por mesa).
+## Configuración
+- En el proyecto Vercel mistura_fish_reports: LOYVERSE_TOKEN (Secret de producción), DATABASE_URL y APP_PASSWORD. Esta carta no necesita otra base ni otro token.
+- En Reports → Pedidos web → Pagos / Loyverse: actualizar referencias, seleccionar tienda y tipos de pago, habilitar el envío de ventas. Elegir un artículo de delivery si se cobra envío.
+- En Carta: seleccionar los platos y su presentación, guardar y abrir la carta. Los artículos con impuestos añadidos necesitan revisión antes de publicarse.
+- Personal: /admin.html enlaza los perfiles reales; sus códigos los genera administración en Reports.
+- QR: /qr.html genera un SVG descargable con mesa opcional.
 
-## Importante
-- El precio siempre se toma de Loyverse en el servidor; el navegador no puede cambiarlo.
-- Yape se confirma manualmente: el personal verifica el pago y lo marca. No hay conexión automática con Yape.
-- Si usas delivery con costo de envío, crea un producto "Delivery" en Loyverse y pon su ID en `DELIVERY_VARIANT_ID`; si no, el envío se cobra pero no se registra en el recibo.
-- Anti-abuso básico: celular obligatorio, máximo 3 pedidos pendientes por celular por hora y cantidades limitadas.
-- Un recibo de Loyverse no es necesariamente un comprobante electrónico de SUNAT: consúltalo con tu contador.
-- Vercel Hobby es solo para uso no comercial.
-- Verifica con la documentación oficial de Loyverse los campos de `POST /receipts` (`line_items`, `payments`) y de `/payment_types` y `/stores`, y haz una venta de prueba antes de abrir al público.
+## Pagos y comprobantes
+Seleccionar Yape o tarjeta no acredita un pago. Sin pasarela configurada, la carta admite efectivo y mantiene deshabilitados los cobros en línea. No muestra QR, teléfono o códigos Yape ficticios. Las promociones de WhatsApp requieren configuración adicional; el permiso del cliente es opcional. No se promete emitir una boleta o factura fiscal solo por crear un recibo en Loyverse.
+
+## Seguridad y duplicados
+El total se valida en servidor; el seguimiento usa un token aleatorio en el fragmento de URL y se envía por cabecera. Repetir el envío consulta el mismo pedido. Si se pierde la confirmación de un POST a Loyverse, el sistema exige conciliación; no crea automáticamente otro recibo. El stock físico no se descuenta por receta salvo activación expresa en Reports.
+
+## Pruebas
+La integración y permisos se prueban en el repositorio de Reports con almacenamiento aislado, precios sintéticos y respuestas simuladas de Loyverse. La vista local de la carta nunca debe escribir pedidos ficticios en producción. El antiguo schema.sql queda como referencia histórica y ya no se usa; no hay que ejecutar una migración para esta carta.
