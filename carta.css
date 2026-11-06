@@ -7,3 +7,5 @@ body{padding-bottom:75px}h1,h2,h3,.price{font-family:'Playfair Display',Georgia,
 .shop-layout>section,.shop-layout>aside{min-width:0}.category-chips{max-width:100%;min-width:0}.search-label input{min-width:0}.section-heading select{min-width:0}
 @media(max-width:700px){.shop-layout{grid-template-columns:minmax(0,1fr)}.menu-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:360px){.menu-grid{grid-template-columns:minmax(0,1fr)}}
+
+@media(max-width:700px){.menu-grid{grid-template-columns:minmax(0,1fr)}.menu-item{padding:0 20px 20px}.dish-art{height:145px;margin:0 -20px 18px}.menu-item h3{font-size:24px;overflow-wrap:break-word}.menu-item p{font-size:13px}}
